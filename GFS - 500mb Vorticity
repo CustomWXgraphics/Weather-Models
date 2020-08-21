@@ -1,0 +1,199 @@
+#import necessary libraries
+import cartopy.crs as ccrs
+import cartopy.feature as cfeat
+import matplotlib.pyplot as plt
+import matplotlib.colors as col
+import matplotlib.patheffects as path_effects
+import xarray as xr
+import numpy as np
+from datetime import datetime, timedelta
+from scipy.ndimage.filters import maximum_filter, minimum_filter
+
+from metpy.units import units
+import metpy.calc as calc
+
+
+#To allow multiple files to run
+plt.rcParams.update({'figure.max_open_warning': 0})
+
+#Find the closest date and time
+time = dt.datetime.now()
+year = time.year
+month = time.month
+day = time.day
+hour = time.hour
+    
+if day > 10 and month > 10:
+    run_date = str(year) + str(month) + str(day)
+elif month < 10 or day < 10:
+    if month < 10 and 10 < day:
+        run_date = str(year) + str(0) + str(month) + str(day)
+    elif day < 10 and 10 < month:
+        run_date = str(year) + str(month) + str(0) + str(day)
+    elif day < 10 and month < 10:
+        run_date = str(year) + str(0) + str(month) + str(0) + str(day)
+
+if hour in range(0,7):
+    run_hour = "0000"
+elif hour in range(7,13):
+    run_hour = "0600"
+elif hour in range(13,19):
+    run_hour = "1200"
+elif hour in range(19,24):
+    run_hour = "1800"
+
+#Set dataset name
+dataset = f"https://thredds-test.unidata.ucar.edu/thredds/dodsC/grib/NCEP/GFS/Global_0p25deg/GFS_Global_0p25deg_{run_date}_{run_hour}.grib2"
+
+lat_north = 55
+lat_south = -10
+lon_west = 360
+lon_east = 250
+data = xr.open_dataset(dataset)
+print(data)
+data = data.sel(lat=slice(lat_north,lat_south), lon=slice(lon_east,lon_west))
+
+#========================================================================================================
+# Step 0. Open Variables and Calculate Variables
+#========================================================================================================
+
+hour = 60
+
+lon = data["lon"]
+lat = data["lat"]
+uwind = data["u-component_of_wind_isobaric"][hour].sel(isobaric5=50000)
+vwind = data["v-component_of_wind_isobaric"][hour].sel(isobaric5=50000)
+vort = data["Absolute_vorticity_isobaric"][hour].sel(isobaric=50000)
+Geo_500 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=50000) /10
+Geo_850 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=85000) /10
+Geo_750 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=70000) /10
+msl_hp = data["Pressure_reduced_to_MSL_msl"][hour] / 100
+
+#Assign units to u and v winds
+u = uwind.values * units('m/s')
+v = vwind.values * units('m/s')
+vort = vort.values * units('m')
+
+
+#Plot time
+time1 = datetime.strptime(str(data.time.data[hour].astype('datetime64[ms]')),
+                          '%Y-%m-%dT%H:%M:%S.%f')
+time2 = datetime.strftime(time1, "%Y-%m-%d %H00 UCT")
+
+#Calculate lat and lon Gridding
+dx, dy = calc.lat_lon_grid_deltas(lon,lat)
+
+#Calculate Vorticity
+vort = calc.vorticity(u,v,dx,dy)
+
+#Select hour
+hour=45
+
+lat_north = 43
+lat_south = 15
+lon_west = 360
+lon_east = 250
+data = xr.open_dataset(dataset)
+data = data.sel(lat=slice(lat_north,lat_south), lon=slice(lon_east,lon_west))
+
+lon = data["lon"]
+lat = data["lat"]
+uwind = data["u-component_of_wind_isobaric"][hour].sel(isobaric5=50000)
+vwind = data["v-component_of_wind_isobaric"][hour].sel(isobaric5=50000)
+vort = data["Absolute_vorticity_isobaric"][hour].sel(isobaric=50000)
+Geo_500 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=50000) /10
+Geo_850 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=85000) /10
+Geo_750 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=70000) /10
+msl_hp = data["Pressure_reduced_to_MSL_msl"][hour] / 100
+
+#Assign units to u and v winds
+u = uwind.values * units('m/s')
+v = vwind.values * units('m/s')
+vort = vort.values * units('m')
+
+
+#Plot time
+time1 = datetime.strptime(str(data.time.data[hour].astype('datetime64[ms]')),
+                          '%Y-%m-%dT%H:%M:%S.%f')
+time2 = datetime.strftime(time1, "%Y-%m-%d %H00 UCT")
+
+#Calculate lat and lon Gridding
+dx, dy = calc.lat_lon_grid_deltas(lon,lat)
+
+#Calculate Vorticity
+vort = calc.vorticity(u,v,dx,dy)
+
+#Create figure
+fig = plt.figure(figsize=(14,9))
+ax = fig.add_axes([1,1,1,1],projection=ccrs.Miller())
+
+#List Coordinates
+Lat_west = -105
+Lat_east =-55
+Lon_south = 15
+Lon_north = 38
+
+ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
+
+#add landforms
+ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='white')
+ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.4, zorder=7)
+#ax.add_feature(cfeat.LAND.with_scale('50m'), facecolor='#DDDDDD')
+ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#4F5457', zorder=6)
+ax.add_feature(cfeat.BORDERS.with_scale('50m'), edgecolor='#4F5457', zorder=8)
+
+
+
+
+
+Valid1 = datetime.strptime(str(data.time1.data[hour].astype('datetime64[ms]')),
+                          '%Y-%m-%dT%H:%M:%S.%f') -timedelta(hours=3)
+Valid = datetime.strftime(Valid1, "%Y-%m-%d %Hz")
+
+Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
+                          '%Y-%m-%dT%H:%M:%S.%f')
+Init = datetime.strftime(Init1, "%Y-%m-%d %Hz")
+
+#Find Forecast hour
+Valid1 - Init1
+data = pd.date_range(start=Init1, end=Valid1, freq='60min')
+hours = len(data) -1 + 6
+
+#Scale Vorticity
+fint = np.arange(1,51,1)
+vort_plot = (vort*10**5).m
+
+cmap = col.ListedColormap(['#FFFF2A','#FFFF1A', '#FFFF0E', '#FFFE00', '#FFF300', '#FFEB00', '#FFE100', '#FFD900', 
+                            '#FFCF00', '#FFC400', '#FFBC00', '#FFB200', '#FFAA00', '#FF9F00', '#FF9800', '#FF8D00', 
+                            '#FF8300', '#FF7B00', '#FF7000', '#FF6800', '#FF5E00', '#FF5300', '#FF4C00', '#FF4100',
+                            '#FF3900', '#FF3900', '#FF2A00', '#FF2A00', '#FF1700', '#FF0500', '#FF0500', '#F60000',
+                            '#EC0000', '#E10000', '#DA0200', '#DA0200', '#CF0000', '#C70000', '#BE0300', '#B50100', '#AA0100', '#9C0001',
+                            '#9C0001',"#890101","#7B0001","#7B0001","#710001","#710001","#5E0101"])  
+
+#create colorbar ticks
+clevs = fint[::2]
+
+#Plot vorticity
+Vorticity = ax.contourf(lon, lat, vort_plot, levels=fint,  transform=ccrs.PlateCarree(), cmap=cmap , zorder=2, extend="max")
+#plot colorbar
+cbar = plt.colorbar(Vorticity, shrink=.74,pad=0.01, aspect=30, ticks=clevs)
+
+#create contour ticks
+clevs1 = [471,474,477,480,483,486,489,492,495,498,501,504,507,510,513,516,519,522,525,528,531,534,537,540,543,546,549,552,555,558,561,
+        564.567,570,573,576,579,582,585,588,591,594,597,600,603]
+
+
+ax.contour(lon,lat,Geo_500, clevs1, transform=ccrs.PlateCarree(), extend="both", colors="black")
+
+
+#Add watermark
+plt.text(0.99,0.02,'Graphics By: @CustomWX',
+        ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='black',fontweight='bold'
+            , bbox={'facecolor':'white', 'alpha':1, 'boxstyle':'square'}, zorder=4)
+
+#Plot Title
+fig.suptitle(r"0.25$^o$ GFS | 500mb Absolute Vorticity ($10^5 V ^{-1}$) | 500mb Heights (dm) ", transform=ax.transAxes, fontweight="bold", fontsize=15, y=1.085, x=0, ha="left", va="top")
+plt.title(f"Init: {Init} | Valid: {Valid} | Hour: [{hours}]",x=0.0, y=1.017, fontsize=15, loc="left", transform=ax.transAxes)
+
+
+plt.show()
