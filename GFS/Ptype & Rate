@@ -40,9 +40,9 @@ if hour in range(0,7):
     run_hour = "0000"
 elif hour in range(7,13):
     run_hour = "0600"
-elif hour in range(13,19):
+elif hour in range(13,20):
     run_hour = "1200"
-elif hour in range(19,24):
+elif hour in range(20,24):
     run_hour = "1800"
 
 #Set dataset name
