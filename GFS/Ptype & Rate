@@ -83,15 +83,15 @@ ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
 
 transform = ccrs.PlateCarree()._as_mpl_transform(ax)
 
-#add landforms
-ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
-ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
-ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
-ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
 Lat_west = -123
 Lat_east = -67
 Lon_south = 21
 Lon_north = 50
+
+#add landforms
+ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
+ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
+ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
 ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
 
 print("----> Set up cartopy projection & geography")
