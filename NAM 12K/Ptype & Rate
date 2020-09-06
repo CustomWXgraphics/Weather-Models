@@ -1,0 +1,168 @@
+import cartopy.crs as ccrs
+import cartopy.feature as cfeat
+import matplotlib.pyplot as plt
+import matplotlib.colors as col
+import matplotlib.patheffects as path_effects
+import xarray as xr
+import numpy as np
+from datetime import datetime, timedelta
+from scipy.ndimage.filters import maximum_filter, minimum_filter
+import datetime as dt
+import pandas as pd
+import scipy.ndimage as ndimage
+from scipy.ndimage.filters import minimum_filter, maximum_filter
+import matplotlib.patheffects as path_effects
+import matplotlib as mpl
+
+
+from metpy.units import units
+import metpy.calc as mpcalc
+
+#Find the closest date and time
+time = dt.datetime.now()
+year = time.year
+month = time.month
+day = time.day
+hour = time.hour
+    
+if day > 10 and month > 10:
+    run_date = str(year) + str(month) + str(day)
+elif month < 10 or day < 10:
+    if month < 10 and 10 < day:
+        run_date = str(year) + str(0) + str(month) + str(day)
+    elif day < 10 and 10 < month:
+        run_date = str(year) + str(month) + str(0) + str(day)
+    elif day < 10 and month < 10:
+        run_date = str(year) + str(0) + str(month) + str(0) + str(day)
+
+if hour in range(22,5):
+    run_hour = "00"
+elif hour in range(5,11):
+    run_hour = "06"
+elif hour in range(11,17):
+    run_hour = "12"
+elif hour in range(17,22):
+    run_hour = "18"
+
+data = xr.open_dataset(f"http://nomads.ncep.noaa.gov:80/dods/nam/nam{run_date}/nam_{run_hour}z")
+
+artists = []
+
+#plot figure
+hour = 22
+sn = data["csnowsfc"][hour]
+ip = data["cicepsfc"][hour]
+zr = data["cfrzrsfc"][hour]
+rate = data["refcclm"][hour]
+mslp = data["msletmsl"][hour] / 100
+Geo_500 = data["hgtprs"][hour].sel(lev=500) / 10
+Geo_1000 = data["hgtprs"][hour].sel(lev=1000) /10
+remain = Geo_500 - Geo_1000
+lon = data["lon"]
+lat = data["lat"]
+proj_ccrs = ccrs.LambertConformal()
+
+
+
+
+Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
+                        '%Y-%m-%dT%H:%M:%S.%f') 
+Init = datetime.strftime(Init1, "%Y-%m-%d %Hz")
+
+Valid1 = datetime.strptime(str(data.time.data[hour].astype('datetime64[ms]')),
+                          '%Y-%m-%dT%H:%M:%S.%f')
+Valid = datetime.strftime(Valid1, "%Y-%m-%d %Hz")
+
+#Find Forecast hour
+hours = pd.date_range(start=Init1, end=Valid1, freq='60min')
+hours = len(hours) - 1
+
+snow = np.where(sn >= 1, rate, sn)
+zr = np.where(zr >= 1, rate, zr)
+ip = np.where(ip >= 1, rate, ip)
+
+#plot figure
+fig = plt.figure(figsize=(18,12))
+ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
+
+transform = ccrs.PlateCarree()._as_mpl_transform(ax)
+
+#add landforms
+ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
+ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
+ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
+Lat_west = -123
+Lat_east = -67
+Lon_south = 21
+Lon_north = 50
+ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
+
+snow = np.where(sn >= 1, rate, sn)
+zr = np.where(zr >= 1, rate, zr)
+ip = np.where(ip >= 1, rate, ip)
+
+
+clevs = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75]
+
+cmap= col.ListedColormap(["#00FF01","#00E600","#00CC01","#00AB01","#018100","#006300", "#FFFF00","#FED500","#FF8E00","#FF0100",
+                         "#C60001","#970001","#FF00FF","#AB00FF"])
+norm = col.BoundaryNorm(clevs,cmap.N)
+
+
+snow_cmap = col.ListedColormap(["#00E7FF","#00CEFD","#00BCFF","#009CFF","#007DFF","#005FFF","#0024FF","#000EFF"
+                                ,"#6519FF","#B25DD8","#EC76E2","#E362D5","#DA4EC8","#D03BBC",])
+
+mix_cmap = col.ListedColormap(["#DA4EC8","#D03BBC","#C727AF","#BD14A2","#AA0088","#B40B7C","#BD126F"
+                                ,"#C71A63","#D02357","#DA2C49","#E4333E","#EC3D32","#F84528",])
+
+ice_cmap = col.ListedColormap(["#FDC18A","#FDB678","#FDA966","#FD9D53","#FA9144","#EE6B1A","#E45709"
+                                ,"#D04A05","#BB3D02","#A23403","#8E2D04"])
+
+
+rate = ax.contourf(lon, lat, rate, clevs, transform=ccrs.PlateCarree(), cmap=cmap)
+cbar = plt.colorbar(rate, shrink=.70,pad=0.01, aspect=35, ticks=clevs)
+
+try:
+    snow = ax.contourf(lon, lat, snow, clevs, transform=ccrs.PlateCarree(),cmap=snow_cmap, norm=norm)
+except:
+    pass
+try:
+    zr = ax.contourf(lon, lat, zr, clevs, transform=ccrs.PlateCarree(),cmap=ice_cmap, norm=norm)
+except:
+    pass
+try:
+    ip = ax.contourf(lon, lat, ip, clevs, transform=ccrs.PlateCarree(),cmap=mix_cmap, norm=norm)
+except:
+    pass
+
+mslp = ndimage.gaussian_filter(mslp,sigma=2,order=0)
+
+contour = ax.contour(lon,lat, mslp, 10, transform=ccrs.PlateCarree(), colors="#1D1D1D", linewidths=1, zorder=5)
+ax.clabel(contour, fmt="%0.0f")
+
+below = np.arange(474,541,6)
+above = np.arange(543,598,6)
+
+#Plot data
+A = ax.contour(lon, lat, remain, above, transform=ccrs.PlateCarree(), linestyles="dashed", colors="red", linewidths=1, alpha=0.7)
+B = ax.contour(lon, lat, remain, below, transform=ccrs.PlateCarree(), linestyles="dashed", colors="blue", linewidths=1, alpha=0.7)
+
+ax.clabel(A, fmt="%0.0f")
+ax.clabel(B, fmt="%0.0f")
+
+B.collections[11].set_color("blue")
+B.collections[11].set_linewidth(2)
+B.collections[11].set_linestyle("-")
+
+#Add watermark
+plt.text(0.99,0.02,'Graphics By: @CustomWX',
+        ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='black',fontweight='bold'
+            , bbox={'facecolor':'white', 'alpha':1, 'boxstyle':'square'}, zorder=15)
+
+#Plot Title
+fig.suptitle(r"12KM NAM | Precipitation Rate & Type [in] | MSLP [hPa] | 500-1000mb Thickness", transform=ax.transAxes, fontweight="bold", fontsize=15, y=1.084, x=0, ha="left", va="top")
+plt.title(f"Init: {Init} | Valid: {Valid} | Hour: [{hours}]",x=0.0, y=1.017, fontsize=15, loc="left", transform=ax.transAxes)
+
+
+
+plt.show()
