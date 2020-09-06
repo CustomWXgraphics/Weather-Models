@@ -40,9 +40,9 @@ if hour in range(0,7):
     run_hour = "0000"
 elif hour in range(7,13):
     run_hour = "0600"
-elif hour in range(13,20):
-    run_hour = "1200"
-elif hour in range(20,24):
+elif hour in range(13,19):
+    run_hour = "0600"
+elif hour in range(19,24):
     run_hour = "1800"
 
 #Set dataset name
@@ -55,7 +55,7 @@ lon_east = 220
 data = xr.open_dataset(dataset)
 data = data.sel(lat=slice(lat_north,lat_south), lon=slice(lon_east,lon_west))
 
-hour = 0
+hour = 25
 
 lat = data.lat.values
 lon = data.lon.values
@@ -67,15 +67,13 @@ rate = data["Precipitation_rate_surface_Mixed_intervals_Average"][hour] * 1500
 
 #Heights
 Geo_500 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=50000.0) / 10
-smooth(Geo_500,100)
 Geo_1000 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=100000.0) / 10
-smooth(Geo_1000,100)
 remain = Geo_500 - Geo_1000
 
 print("----> Read and defined data")
 
 #plot figure
-data_ccrs = ccrs.LambertConformal()
+proj_ccrs = ccrs.LambertConformal()
 
 #plot figure
 fig = plt.figure(figsize=(18,12))
@@ -83,15 +81,14 @@ ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
 
 transform = ccrs.PlateCarree()._as_mpl_transform(ax)
 
-Lat_west = -123
-Lat_east = -67
-Lon_south = 21
-Lon_north = 50
-
 #add landforms
 ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
 ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
 ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
+Lat_west = -123
+Lat_east = -67
+Lon_south = 21
+Lon_north = 50
 ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
 
 print("----> Set up cartopy projection & geography")
@@ -189,16 +186,12 @@ snow = np.where(sn >= 1, rate, sn)
 zr = np.where(zr >= 1, rate, zr)
 ip = np.where(ip >= 1, rate, ip)
 
-clevs = [0.1,0.3,0.5,0.7,1,1.5,2,2.5,3,4,5,6,8,10]
+clevs = [0.1,0.3,0.5,0.7,1,1.5,2,2.5,3,4,5,6,8,10,12]
 
-cmap= col.ListedColormap(["#00FF01","#00E600","#00CC01","#00AB00","#018100","#005701", "#FFFF00","#FFD500","#FF8E00","#FF0100",
+cmap= col.ListedColormap(["#00FF01","#00E600","#00CC01","#00AB01","#018100","#006300", "#FFFF00","#FED500","#FF8E00","#FF0100",
                          "#C60001","#970001","#FF00FF","#AB00FF"])
 norm = col.BoundaryNorm(clevs,cmap.N)
 
-cmap= col.ListedColormap(['#00C200', '#00AC00', '#009000', '#006C00', '#004900', '#FFF000', '#FFCC00', 
-                               '#FF9000', '#FF1800', '#D81300', '#A50F00', '#FF27FF', '#B81FFF'])
-
-norm = col.BoundaryNorm(clevs,cmap.N)
 
 snow_cmap = col.ListedColormap(["#00E7FF","#00CEFD","#00BCFF","#009CFF","#007DFF","#005FFF","#0024FF","#000EFF"
                                 ,"#6519FF","#B25DD8","#EC76E2","#E362D5","#DA4EC8","#D03BBC",])
