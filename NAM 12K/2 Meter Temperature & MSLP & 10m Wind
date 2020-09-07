@@ -1,0 +1,239 @@
+#Note that this original gradient code and colormap was created by Tomer Burg
+#https://github.com/tomerburg/python_gallery/blob/master/synoptic_composite.py
+
+#Creates a color gradient based on passed ranges of values
+class gradient:
+    
+    def __init__(self,*args):
+        self.args = args
+        
+        #Set threshold levels
+        self.thres = []
+        self.thres_min = []
+        
+        #Error check arguments
+        error = 0
+        for arg in args:
+            
+            #Ensure each argument & subargument has a length of 2
+            if len(arg) != 2: error = 1
+            if len(arg[0]) != 2: error = 1
+            if len(arg[1]) != 2: error = 1
+            
+            #Ensure the 2nd element of each argument is a number
+            if isinstance(arg[0][1], (int, float)) == False: error = 2
+            if isinstance(arg[1][1], (int, float)) == False: error = 2
+            
+            #Ensure that the 1st element of each argument is either a hex str or rgb tuple
+            if isinstance(arg[0][0], (str, tuple)) == False: error = 3
+            if isinstance(arg[1][0], (str, tuple)) == False: error = 3
+            
+            #Ensure gradient values are continuous
+            if len(self.thres) > 0 and self.thres[-1] != arg[0][1]: error = 4
+            
+            #Append threshold levels
+            self.thres.append(arg[0][1])
+            self.thres.append(arg[1][1])
+            self.thres_min.append(arg[0][1])
+            
+        #Ensure values are either constantly increasing or decreasing
+        check_thres = np.array(self.thres)
+        diff = check_thres[1:] - check_thres[:-1]
+        if np.min(diff) == 0 and np.max(diff) > 0:
+            pass
+        elif np.min(diff) < 0 and np.max(diff) == 0:
+            self.thres = self.thres[::-1]
+        else:
+            error = 4
+        
+        #Output error messages
+        if error == 1: raise RuntimeError('Each argument must have 2 elements, e.g., [["#00FFFF",25.0],["#0000FF",29.0]]')
+        if error == 2: raise RuntimeError('The second element must be a number, e.g., [["#00FFFF",25.0]')
+        if error == 3: raise RuntimeError('The first element must be a hex string or an rgb tuple, e.g., [["#00FFFF",25.0]')
+        if error == 4: raise RuntimeError('Values assigned to the gradient must be continuous, either increasing or decreasing.')
+        
+    #Returns the hex string corresponding to the passed rgb values
+    def rgb(self,r,g,b):
+        r = int(r)
+        g = int(g)
+        b = int(b)
+        return '#%02x%02x%02x' % (r, g, b)
+        
+    #Computes a hex value matching up with the current position relative to the range of colors.
+    #position = current position within the range of colors (e.g., 1)
+    #rng = range of colors (e.g. 5, so 1/5 would be 20% of the range)
+    #col1 = Starting RGB color for the range (e.g. [0,255,255])
+    #col2 = Ending RGB color for the range (e.g. [0,0,255])
+    def getColor(self,position,rng,col1,col2):
+        
+        #Retrieve r,g,b values from tuple
+        r1,g1,b1 = col1
+        r2,g2,b2 = col2
+    
+        #Get difference in each r,g,b value between start & end 
+        rdif = float(r2 - r1)
+        gdif = float(g2 - g1)
+        bdif = float(b2 - b1)
+        
+        #Calculate r,g,b values for the specified position within the range
+        r3 = r2 + (-1.0 * position * (rdif / float(rng)))
+        g3 = g2 + (-1.0 * position * (gdif / float(rng)))
+        b3 = b2 + (-1.0 * position * (bdif / float(rng)))
+    
+        #Return in hex string format
+        return self.rgb(r3,g3,b3)
+
+    #Finds the nearest gradient range to use
+    def find_nearest(self,arr,val):
+        for ival in arr[::-1]:
+            if ival <= val:
+                return arr.index(ival)
+        
+    #Create a color map based on passed levels
+    def get_cmap(self,levels):
+        
+        #Add empty color list
+        self.colors = []
+        
+        #Iterate through levels
+        for lev in levels:
+            
+            #Check if level is outside of range
+            if lev < self.thres[0]:
+                start_hex = self.args[0][0][0]
+                if "#" not in start_hex: start_hex = self.rgb(start_hex[0],start_hex[1],start_hex[2])
+                self.colors.append(start_hex)
+            
+            elif lev > self.thres[-1]:
+                end_hex = self.args[-1][1][0]
+                if "#" not in end_hex: end_hex = self.rgb(end_hex[0],end_hex[1],end_hex[2])
+                self.colors.append(end_hex)
+                
+            else:
+                
+                #Find closest lower threshold
+                idx = self.find_nearest(self.thres_min,lev)
+                
+                #Retrieve start & end values
+                start_value = self.args[idx][0][1]
+                end_value = self.args[idx][1][1]
+                
+                #Calculate start and end RGB tuples, if passed as hex
+                start_hex = self.args[idx][1][0]
+                end_hex = self.args[idx][0][0]
+                if "#" in start_hex:
+                    start_hex = start_hex.lstrip('#')
+                    end_hex = end_hex.lstrip('#')
+                    start_rgb = tuple(int(start_hex[i:i+2], 16) for i in (0, 2 ,4))
+                    end_rgb = tuple(int(end_hex[i:i+2], 16) for i in (0, 2 ,4))
+                else:
+                    start_rgb = start_hex
+                    end_rgb = end_hex
+    
+                #Get hex value for the color at this point in the range
+                nrange_color = (end_value - start_value)
+                idx = lev - start_value
+                hex_val = self.getColor(idx,nrange_color,start_rgb,end_rgb)
+                
+                #Append color to list
+                self.colors.append(hex_val)
+        
+        #Convert to a colormap and return
+        self.cmap = col.ListedColormap(self.colors)
+        return self.cmap
+                        
+temp_colors = gradient([["#3069AD",-50.0],["#18A2AF", -40.0]],
+                       [["#1BB8BC",-40.0],["#6DE6E9",-30.0]],
+                       [["#79CBEF",-30.0],["#F425FE",-20.0]],
+                       [["#C80CED",-20.0],["#7A26D7",-10.0]],
+                       [["#9155DE",-10.0],["#CFB1F7", 0.0]],
+                       [["#DBDBFC", 0.0], ["#3E3EDD", 10.0]],
+                       [["#0005DF", 10.0],["#007EFD", 20.0]],
+                       [["#00A2FF", 20.0],["#00F9FF", 30.0]],
+                       [["#00B793", 30.0],["#009067", 33.0]],
+                       [["#004100", 33.0],["#008E00", 40.0]],
+                       [["#00A800", 40.0],["#00FD00", 50.0]],
+                       [["#FFFD00", 50.0],["#FFAC00", 60.0]],
+                       [["#FF9200", 60.0],["#FF4500", 70.0]],
+                       [["#FD0C00", 70.0],["#B70000", 80.0]],
+                       [["#9B0000", 80.0],["#580000", 90.0]],
+                       [["#700070", 90.0],["#C900C8", 100.0]],
+                       [["#E530D1", 100.0],["#FE7DE4",110.0]],
+                       [["#FFA1E5", 110.0],["#FFFFFF",120.0]],)
+
+hour=0
+fig = plt.figure(figsize=(18,12))
+ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
+#add landforms
+ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
+ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
+ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
+Lat_west = -123
+Lat_east = -67
+Lon_south = 21
+Lon_north = 50
+
+print("---> Designed Map")
+
+ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
+
+Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
+                        '%Y-%m-%dT%H:%M:%S.%f') 
+Init = datetime.strftime(Init1, "%Y-%m-%d %Hz")
+
+Valid1 = datetime.strptime(str(data.time.data[hour].astype('datetime64[ms]')),
+                          '%Y-%m-%dT%H:%M:%S.%f')
+Valid = datetime.strftime(Valid1, "%Y-%m-%d %Hz")
+
+#Find Forecast hour
+hours = pd.date_range(start=Init1, end=Valid1, freq='60min')
+hours = len(hours) - 1
+
+
+temp = data['tmp2m'][hour]
+mslp = data["msletmsl"][hour] / 100
+temp = (((temp - 273.15) * 9)/5) + 32
+u = data["maxuw10m"][hour]
+v = data["maxvw10m"][hour]
+
+print("---> Defined and Calculated data")
+
+extend = "both"
+
+clevs = np.arange(-50,121,0.5)
+
+cmap = temp_colors.get_cmap(clevs)
+
+#Contour fill this variable
+norm = col.BoundaryNorm(clevs,cmap.N)
+cs = ax.contourf(lon,lat,temp,clevs,cmap=cmap,norm=norm,extend=extend,transform=ccrs.PlateCarree(),alpha=1)
+
+ #Add a color bar
+cbar = plt.colorbar(cs,shrink=0.70,pad=0.01, aspect=35, ticks=[-50,-40,-30,-20,-10,0,10,20,30,40,50,60,70,80,90,100,110,120])
+
+print("---> Plotted Temperatue")
+
+mslp = ndimage.gaussian_filter(mslp,sigma=2,order=0)
+
+contour = ax.contour(lon,lat, mslp, 10, transform=ccrs.PlateCarree(), colors="#1D1D1D", linewidths=1, zorder=5)
+ax.clabel(contour, fmt="%0.0f")
+
+print("---> Plotted MSLP")
+
+
+skip=15
+ax.barbs(lon[::skip], lat[::skip], u[::skip,::skip].values, v[::skip,::skip].values, transform=ccrs.PlateCarree(), length=5, zorder=10, color="black", alpha=0.4)
+
+
+print("---> Plotted Barbs")
+
+#Add watermark
+plt.text(0.99,0.02,'Graphics By: @CustomWX',
+        ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='black',fontweight='bold'
+            , bbox={'facecolor':'white', 'alpha':1, 'boxstyle':'square'}, zorder=15)
+
+#Plot Title
+fig.suptitle(r"12KM NAM | 2 Meter Temperature [$^o$F] | MSLP [hPa] | 10m Wind [kts]", transform=ax.transAxes, fontweight="bold", fontsize=15, y=1.084, x=0, ha="left", va="top")
+plt.title(f"Init: {Init} | Valid: {Valid} | Hour: [{hours}]",x=0.0, y=1.017, fontsize=15, loc="left", transform=ax.transAxes)
+print("---> Finished!")
+plt.show()
