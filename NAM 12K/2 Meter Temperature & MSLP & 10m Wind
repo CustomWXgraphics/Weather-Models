@@ -191,8 +191,6 @@ temp_colors = gradient([["#3069AD",-50.0],["#18A2AF", -40.0]],
                        [["#FFA1E5", 110.0],["#FFFFFF",120.0]],)
 hour=0
 
-from metpy.io import metar
-metar = metar.parse_metar_file(get_test_data('metar_20190701_1200.txt', as_file_obj=False))
 transform = ccrs.PlateCarree()._as_mpl_transform(ax)
 
 fig = plt.figure(figsize=(18,12))
