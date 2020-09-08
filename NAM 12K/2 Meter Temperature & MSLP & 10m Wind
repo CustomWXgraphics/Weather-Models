@@ -1,6 +1,23 @@
 #Note that this original gradient code and colormap was created by Tomer Burg
 #https://github.com/tomerburg/python_gallery/blob/master/synoptic_composite.py
 
+#import necessary libraries
+import cartopy.crs as ccrs
+import cartopy.feature as cfeat
+import matplotlib.pyplot as plt
+import matplotlib.colors as col
+import matplotlib.patheffects as path_effects
+import xarray as xr
+import numpy as np
+from datetime import datetime, timedelta
+from scipy.ndimage.filters import maximum_filter, minimum_filter
+import datetime as dt
+import pandas as pd
+
+from metpy.units import units
+import metpy.calc as mpcalc
+
+
 #Find the closest date and time
 time = dt.datetime.now()
 year = time.year
@@ -27,7 +44,13 @@ elif hour in range(11,17):
 elif hour in range(17,22):
     run_hour = "18"
 
-data = xr.open_dataset(f"http://nomads.ncep.noaa.gov:80/dods/nam/nam{run_date}/nam_{run_hour}z")
+url = f"http://nomads.ncep.noaa.gov:80/dods/nam/nam{run_date}/nam_{run_hour}z"    
+
+#load data
+data = xr.open_dataset(url)
+
+#Select hour to parse through
+hour=5
 
 
 #Creates a color gradient based on passed ranges of values
@@ -170,7 +193,8 @@ class gradient:
         #Convert to a colormap and return
         self.cmap = col.ListedColormap(self.colors)
         return self.cmap
-                        
+
+#Create temperautre colormap
 temp_colors = gradient([["#3069AD",-50.0],["#18A2AF", -40.0]],
                        [["#1BB8BC",-40.0],["#6DE6E9",-30.0]],
                        [["#79CBEF",-30.0],["#F425FE",-20.0]],
@@ -189,12 +213,12 @@ temp_colors = gradient([["#3069AD",-50.0],["#18A2AF", -40.0]],
                        [["#700070", 90.0],["#C900C8", 100.0]],
                        [["#E530D1", 100.0],["#FE7DE4",110.0]],
                        [["#FFA1E5", 110.0],["#FFFFFF",120.0]],)
-hour=0
 
-transform = ccrs.PlateCarree()._as_mpl_transform(ax)
 
+#main plot
 fig = plt.figure(figsize=(18,12))
-ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
+ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal())
+
 #add landforms
 ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
 ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
@@ -204,10 +228,12 @@ Lat_east = -67
 Lon_south = 21
 Lon_north = 50
 
-print("---> Designed Map")
-
 ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
 
+print("---> Designed Map")
+
+
+#Find initialization time, valid time
 Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
                         '%Y-%m-%dT%H:%M:%S.%f') 
 Init = datetime.strftime(Init1, "%Y-%m-%d %Hz")
@@ -220,28 +246,42 @@ Valid = datetime.strftime(Valid1, "%Y-%m-%d %Hz")
 hours = pd.date_range(start=Init1, end=Valid1, freq='60min')
 hours = len(hours) - 1
 
+#Load all variables
 lon = data["lon"]
 lat = data["lat"]
-temp = data['tmp2m'][hour]
 mslp = data["msletmsl"][hour] / 100
-temp = (((temp - 273.15) * 9)/5) + 32
 u = data["maxuw10m"][hour]
 v = data["maxvw10m"][hour]
+
+#Calculate temperature
+temp = data['tmp2m'][hour]
+temp = (((temp - 273.15) * 9)/5) + 32
 
 print("---> Defined and Calculated data")
 
 extend = "both"
 
+#Colorbar extent
 clevs = np.arange(-50,121,0.5)
-
 cmap = temp_colors.get_cmap(clevs)
 
 #Contour fill this variable
 norm = col.BoundaryNorm(clevs,cmap.N)
 cs = ax.contourf(lon,lat,temp,clevs,cmap=cmap,norm=norm,extend=extend,transform=ccrs.PlateCarree(),alpha=1)
 
- #Add a color bar
+#Add a color bar
 cbar = plt.colorbar(cs,shrink=0.70,pad=0.01, aspect=35, ticks=[-50,-40,-30,-20,-10,0,10,20,30,40,50,60,70,80,90,100,110,120])
+
+print("---> Plotted Temperature")
+
+contour = ax.contour(lon,lat, mslp, 10, transform=ccrs.PlateCarree(), colors="#1D1D1D", linewidths=1, zorder=5)
+ax.clabel(contour, fmt="%0.0f")
+
+print("---> Plotted MSLP")
+
+skip= 20
+ax.barbs(lon[::skip],lat[::skip],u[::skip,::skip].values,v[::skip,::skip].values, transform=ccrs.PlateCarree(), length=6, alpha=0.3)
+
 
 print("---> Plotted Barbs")
 
