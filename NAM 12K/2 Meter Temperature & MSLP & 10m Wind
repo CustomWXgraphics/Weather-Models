@@ -269,6 +269,22 @@ cmap = temp_colors.get_cmap(clevs)
 norm = col.BoundaryNorm(clevs,cmap.N)
 cs = ax.contourf(lon,lat,temp,clevs,cmap=cmap,norm=norm,extend=extend,transform=ccrs.PlateCarree(),alpha=1)
 
+min = np.min(temp)
+min = float(min)
+min = round(min,2)
+
+#Plot Mimimum
+plt.text(0.99,1.01,f'Min: {min}',
+        ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='tab:blue', zorder=15)
+
+max = np.max(temp)
+max = float(max)
+max = round(max,2)
+
+#Plot Maximum
+plt.text(0.99,1.035,f'Max: {max}',
+        ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='tab:red', zorder=15)
+
 #Add a color bar
 cbar = plt.colorbar(cs,shrink=0.70,pad=0.01, aspect=35, ticks=[-50,-40,-30,-20,-10,0,10,20,30,40,50,60,70,80,90,100,110,120])
 
