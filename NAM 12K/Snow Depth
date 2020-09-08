@@ -102,6 +102,15 @@ norm = col.BoundaryNorm(clevs,cmap.N)
 
 total = ax.contourf(lon,lat,snow_equiv, clevs, transform=ccrs.PlateCarree(), cmap=cmap, norm=norm)
 
+#Find maximum snow totals
+max = np.max(snow_equiv)
+max = float(max)
+max = round(max, 2)
+
+#Plot Maximum
+plt.text(0.99,1.01,f'Max: {max}',
+        ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='tab:red', zorder=15)
+
 cbar = plt.colorbar(total, shrink=.70,pad=0.01, aspect=35, ticks=clevs[::2])
 
 #Add watermark
