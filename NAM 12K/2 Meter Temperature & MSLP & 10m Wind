@@ -1,6 +1,35 @@
 #Note that this original gradient code and colormap was created by Tomer Burg
 #https://github.com/tomerburg/python_gallery/blob/master/synoptic_composite.py
 
+#Find the closest date and time
+time = dt.datetime.now()
+year = time.year
+month = time.month
+day = time.day
+hour = time.hour
+    
+if day > 10 and month > 10:
+    run_date = str(year) + str(month) + str(day)
+elif month < 10 or day < 10:
+    if month < 10 and 10 < day:
+        run_date = str(year) + str(0) + str(month) + str(day)
+    elif day < 10 and 10 < month:
+        run_date = str(year) + str(month) + str(0) + str(day)
+    elif day < 10 and month < 10:
+        run_date = str(year) + str(0) + str(month) + str(0) + str(day)
+
+if hour in range(22,5):
+    run_hour = "00"
+elif hour in range(5,11):
+    run_hour = "06"
+elif hour in range(11,17):
+    run_hour = "12"
+elif hour in range(17,22):
+    run_hour = "18"
+
+data = xr.open_dataset(f"http://nomads.ncep.noaa.gov:80/dods/nam/nam{run_date}/nam_{run_hour}z")
+
+
 #Creates a color gradient based on passed ranges of values
 class gradient:
     
@@ -160,8 +189,12 @@ temp_colors = gradient([["#3069AD",-50.0],["#18A2AF", -40.0]],
                        [["#700070", 90.0],["#C900C8", 100.0]],
                        [["#E530D1", 100.0],["#FE7DE4",110.0]],
                        [["#FFA1E5", 110.0],["#FFFFFF",120.0]],)
-
 hour=0
+
+from metpy.io import metar
+metar = metar.parse_metar_file(get_test_data('metar_20190701_1200.txt', as_file_obj=False))
+transform = ccrs.PlateCarree()._as_mpl_transform(ax)
+
 fig = plt.figure(figsize=(18,12))
 ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
 #add landforms
@@ -189,7 +222,8 @@ Valid = datetime.strftime(Valid1, "%Y-%m-%d %Hz")
 hours = pd.date_range(start=Init1, end=Valid1, freq='60min')
 hours = len(hours) - 1
 
-
+lon = data["lon"]
+lat = data["lat"]
 temp = data['tmp2m'][hour]
 mslp = data["msletmsl"][hour] / 100
 temp = (((temp - 273.15) * 9)/5) + 32
@@ -210,20 +244,6 @@ cs = ax.contourf(lon,lat,temp,clevs,cmap=cmap,norm=norm,extend=extend,transform=
 
  #Add a color bar
 cbar = plt.colorbar(cs,shrink=0.70,pad=0.01, aspect=35, ticks=[-50,-40,-30,-20,-10,0,10,20,30,40,50,60,70,80,90,100,110,120])
-
-print("---> Plotted Temperatue")
-
-mslp = ndimage.gaussian_filter(mslp,sigma=2,order=0)
-
-contour = ax.contour(lon,lat, mslp, 10, transform=ccrs.PlateCarree(), colors="#1D1D1D", linewidths=1, zorder=5)
-ax.clabel(contour, fmt="%0.0f")
-
-print("---> Plotted MSLP")
-
-
-skip=15
-ax.barbs(lon[::skip], lat[::skip], u[::skip,::skip].values, v[::skip,::skip].values, transform=ccrs.PlateCarree(), length=5, zorder=10, color="black", alpha=0.4)
-
 
 print("---> Plotted Barbs")
 
