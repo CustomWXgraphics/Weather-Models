@@ -60,10 +60,10 @@ hour = 25
 lat = data.lat.values
 lon = data.lon.values
 mslp = data["Pressure_reduced_to_MSL_msl"][hour] / 100
-zr = data["Categorical_Freezing_Rain_surface_Mixed_intervals_Average"][hour]
-ip = data["Categorical_Ice_Pellets_surface_Mixed_intervals_Average"][hour]
-sn = data["Categorical_Snow_surface_Mixed_intervals_Average"][hour]
-rate = data["Precipitation_rate_surface_Mixed_intervals_Average"][hour] * 1500
+zr = data["Categorical_Freezing_Rain_surface"][hour]
+ip = data["Categorical_Ice_Pellets_surface"][hour]
+sn = data["Categorical_Snow_surface"][hour]
+rate = data["Precipitation_rate_surface"][hour] * 1500
 
 #Heights
 Geo_500 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=50000.0) / 10
@@ -186,7 +186,7 @@ snow = np.where(sn >= 1, rate, sn)
 zr = np.where(zr >= 1, rate, zr)
 ip = np.where(ip >= 1, rate, ip)
 
-clevs = [0.1,0.3,0.5,0.7,1,1.5,2,2.5,3,4,5,6,8,10,12]
+clevs = [0.1,0.3,0.5,0.7,1,1.5,2,2.5,3,5,7,10,15,20,25]
 
 cmap= col.ListedColormap(["#00FF01","#00E600","#00CC01","#00AB01","#018100","#006300", "#FFFF00","#FED500","#FF8E00","#FF0100",
                          "#C60001","#970001","#FF00FF","#AB00FF"])
