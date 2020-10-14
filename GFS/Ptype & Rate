@@ -41,7 +41,7 @@ if hour in range(0,7):
 elif hour in range(7,13):
     run_hour = "0600"
 elif hour in range(13,19):
-    run_hour = "0600"
+    run_hour = "1200"
 elif hour in range(19,24):
     run_hour = "1800"
 
