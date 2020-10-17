@@ -62,7 +62,6 @@ lon = data.lon.values
 
 snow_equiv = data["Water_equivalent_of_accumulated_snow_depth_surface"][hour] * 0.04 *10
 
-while i >= hour:
 
 print("----> Read and defined data")
 
