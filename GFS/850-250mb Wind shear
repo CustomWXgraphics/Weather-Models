@@ -25,14 +25,14 @@ month = time.month
 day = time.day
 hour = time.hour
     
-if day > 10 and month > 10:
+if day >= 10 and month >= 10:
     run_date = str(year) + str(month) + str(day)
-elif month < 10 or day < 10:
-    if month < 10 and 10 < day:
+elif month <= 10 or day <= 10:
+    if month <= 10 and 10 <= day:
         run_date = str(year) + str(0) + str(month) + str(day)
-    elif day < 10 and 10 < month:
+    elif day <= 10 and 10 <= month:
         run_date = str(year) + str(month) + str(0) + str(day)
-    elif day < 10 and month < 10:
+    elif day <= 10 and month <= 10:
         run_date = str(year) + str(0) + str(month) + str(0) + str(day)
 
 if hour in range(0,7):
