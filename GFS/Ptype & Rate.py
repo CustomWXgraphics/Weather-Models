@@ -8,13 +8,10 @@ import xarray as xr
 import numpy as np
 from datetime import datetime, timedelta
 from scipy.ndimage.filters import maximum_filter, minimum_filter
+import scipy.ndimage as ndimage
 import datetime as dt
 import pandas as pd
-import scipy.ndimage as ndimage
-from scipy.ndimage.filters import minimum_filter, maximum_filter
-import matplotlib.patheffects as path_effects
-import matplotlib as mpl
-
+import geopandas
 
 from metpy.units import units
 import metpy.calc as mpcalc
@@ -37,61 +34,220 @@ elif month <= 10 or day <= 10:
         run_date = str(year) + str(0) + str(month) + str(0) + str(day)
 
 if hour in range(0,7):
-    run_hour = "0000"
+    run_hour = "00z"
 elif hour in range(7,13):
-    run_hour = "0600"
+    run_hour = "06z"
 elif hour in range(13,19):
-    run_hour = "1200"
+    run_hour = "12z"
 elif hour in range(19,24):
-    run_hour = "1800"
+    run_hour = "18z"
+try:
+    original_hour = int(input("Please Input the forecast hour: "))
+except:
+    print("Invalid Format of hour. Defaulting to 3 ")
+    original_hour = 3
 
-#Set dataset name
-dataset = f"https://thredds-test.unidata.ucar.edu/thredds/dodsC/grib/NCEP/GFS/Global_0p25deg/GFS_Global_0p25deg_{run_date}_{run_hour}.grib2"
 
-lat_north = 55
+if original_hour <= 240:
+    dataset = f"http://nomads.ncep.noaa.gov:80/dods/gfs_0p25/gfs{run_date}/gfs_0p25_{run_hour}"
+elif original_hour > 240 and original_hour <= 384:
+    dataset = f"http://nomads.ncep.noaa.gov:80/dods/gfs_0p50/gfs{run_date}/gfs_0p50_{run_hour}"
+else:
+    print("Hours out of bounds")
+
+
+hour = original_hour/3
+if hour % 3 != int(hour % 3):
+    print(hour % 3)
+    print("Invalid Hour: Rounding to the closest time")
+    hour = round(hour, 0)
+if hour > 384:
+    print("Time out of 384hr bounds. Defaulting to 3 ")
+    hour = 1
+
+hour = int(hour)
+
+
+
+
+
+
+lat_north = 59
 lat_south = -10
 lon_west = 360
 lon_east = 220
 data = xr.open_dataset(dataset)
-data = data.sel(lat=slice(lat_north,lat_south), lon=slice(lon_east,lon_west))
+data = data.sel(lon=slice(lon_east,lon_west),lat=slice(lat_south,lat_north))
 
-hour = 25
 
-lat = data.lat.values
-lon = data.lon.values
-mslp = data["Pressure_reduced_to_MSL_msl"][hour] / 100
-zr = data["Categorical_Freezing_Rain_surface"][hour]
-ip = data["Categorical_Ice_Pellets_surface"][hour]
-sn = data["Categorical_Snow_surface"][hour]
-rate = data["Precipitation_rate_surface"][hour] * 1500
+
+lon = data["lon"]
+lat = data["lat"]
+
+mslp = data["msletmsl"][hour] / 100
+zr = data["cfrzrsfc"][hour]
+ip = data["cicepsfc"][hour]
+sn = data["csnowsfc"][hour]
+rate = data["prateavesfc"][hour] * 1500
 
 #Heights
-Geo_500 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=50000.0) / 10
-Geo_1000 = data["Geopotential_height_isobaric"][hour].sel(isobaric3=100000.0) / 10
+Geo_500 = data["hgtprs"][hour].sel(lev=500) / 10
+Geo_1000 = data["hgtprs"][hour].sel(lev=1000) / 10
 remain = Geo_500 - Geo_1000
 
 print("----> Read and defined data")
 
-#plot figure
-proj_ccrs = ccrs.LambertConformal()
+#Blank Dictionary to be used later
+dict = {}
 
-#plot figure
-fig = plt.figure(figsize=(18,12))
-ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
+#If True, only counties with be plotted with selected state
+Select_State_County = True
 
-transform = ccrs.PlateCarree()._as_mpl_transform(ax)
+#Select State to Zoom to
+try:
+    State = input("Input State Initials or US (Example MA): ")
+    State1 = int(State)
+    print("Invalid Response Defaulting to US ")
+    State = "US"
+except:
+    pass
 
-#add landforms
-ax.add_feature(cfeat.LAKES.with_scale('50m'), facecolor='#ABD9ED', zorder=0)
-ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
-ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
-Lat_west = -123
-Lat_east = -67
-Lon_south = 21
-Lon_north = 50
-ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
+if State == "US":
+    #plot figure
+    fig = plt.figure(figsize=(18,12))
+    ax = plt.subplot(1,1,1, projection=ccrs.LambertConformal()) #main plot
+    proj = ccrs.LambertConformal()
 
-print("----> Set up cartopy projection & geography")
+    transform = ccrs.PlateCarree()._as_mpl_transform(ax)
+
+    #add landforms
+    ax.add_feature(cfeat.STATES.with_scale('50m'), linewidth=0.6, edgecolor='#404040', zorder=2)
+    ax.add_feature(cfeat.COASTLINE.with_scale('50m'), edgecolor='#172520', linewidth=1.2)
+    Lat_west = -123
+    Lat_east = -67
+    Lon_south = 21
+    Lon_north = 50
+    ax.set_extent([Lat_east, Lat_west, Lon_north, Lon_south])
+else:
+    #Select Distance from states (0=close, 100=far)
+
+    try:
+        distance = input("Please Enter Zoom Distance (0 = Close, 50 = Far): ")
+        distance = int(distance)
+    except:
+        print("Invalid Response Defaulting to 25")
+        distance = 25
+
+
+    #Open County and States shapefiles from directory [THESE ARE IN THE GITHUB DIRECTORY]
+    states_shapefile = geopandas.read_file("cb_2018_us_state_5m.shp")
+    counties_shapefile = geopandas.read_file("cb_2018_us_county_5m.shp")
+
+
+    #Associate State (key) w/ Abbreviation (value) ("North Caroline" = "NC") into dictionary
+    dict = pd.Series(states_shapefile["STATEFP"].values, index=states_shapefile["STUSPS"]).to_dict()
+
+    #If the State you selected is a correct State, assign it to variable (chosen_state)
+    for key, value in dict.items():
+        if key == State:
+            chosen_state = value
+
+    #Only plot the counties within your chosen state
+    if Select_State_County == True:
+        county_geometries = counties_shapefile[counties_shapefile['STATEFP'] == str(chosen_state)]
+
+    #Selected only the state we can center
+    selected_state_geometries = states_shapefile[states_shapefile['STATEFP'] == str(chosen_state)]
+
+    #Find Maximum extent value 
+    south = selected_state_geometries.bounds.miny
+    north = selected_state_geometries.bounds.maxy
+    west = selected_state_geometries.bounds.minx
+    east =  selected_state_geometries.bounds.maxx
+
+    #Center longitude and Latitude by finding the average
+    lon1 = float(east)+float(west)
+    lat1 = float(north)+float(south)
+
+    #Define the global projection
+    proj = ccrs.Orthographic(
+        central_longitude = (lon1/2),
+        central_latitude =  (lat1/2)
+    )
+
+    #Plot blank figure
+    fig = plt.figure(figsize=(18,12))
+    ax = fig.add_subplot(1,1,1, projection=proj)
+
+    #Define the distance between North and South
+    ne = float(north-south)
+    we = float(east-west)
+
+    bvalue = []
+    avalue = []
+
+    #Select x, y box ratio
+    x_ratio = 7.45
+    y_ratio = 14
+
+    #Loop through all valid 
+    if float(lat1/2) > 39:
+        for i in range(1,200):
+            a = x_ratio*(i/100)
+            b = y_ratio*(i/100)
+            if b > we and a > ne:
+                avalue.append(a)
+                bvalue.append(b)
+
+        b = bvalue[0+distance]
+        a = avalue[0+distance]
+
+        ne = (a - ne)/2
+        we = (b - we)/2
+
+    else:
+        for i in range(1,200):
+            a = 7.45*(i/100)
+            b = 13.333*(i/100)
+            if b > we and a > ne:
+                avalue.append(a)
+                bvalue.append(b)
+
+        b = bvalue[0+distance]
+        a = avalue[0+distance]
+
+        ne = (a - ne)/2
+        we = (b - we)/2
+
+
+    south = south - ne
+    north = north + ne
+    east = east + we
+    west = west - we 
+
+
+
+    ax.set_extent([west,east,north,south])
+
+    ax.add_geometries(states_shapefile["geometry"], crs=ccrs.PlateCarree(), linewidth=0.5, zorder=7,facecolor="none", edgecolor="black")
+    if Select_State_County == True:
+        ax.add_geometries(county_geometries["geometry"], crs=ccrs.PlateCarree(), edgecolor="black", facecolor="none", linewidth=0.1,zorder=59)
+    if Select_State_County == False:
+        ax.add_geometries(counties_shapefile["geometry"], crs=ccrs.PlateCarree(), edgecolor="black", facecolor="none", linewidth=0.05,zorder=59)
+
+    aspect = sum(np.abs(ax.get_xlim())) / sum(np.abs(ax.get_ylim()))
+    y = sum(np.abs(ax.get_ylim()))/100000
+    x = sum(np.abs(ax.get_xlim()))/100000
+
+    exa = (a-y)/2
+    exb = (b-x)/2
+
+    south = south
+    north = north
+    east = east + exb - (exa*2)
+    west = west - exb + (exa*2)
+
+    ax.set_extent([west,east,north,south])
 
 def smooth(prod,sig):
     
@@ -121,7 +277,7 @@ def mslp_label(mslp,lat,lon):
     #Determine axis boundaries
     xmin, xmax, ymin, ymax = ax.get_extent()
     lons2d, lats2d = np.meshgrid(lon, lat)
-    transformed = proj_ccrs.transform_points(ccrs.PlateCarree(), lons2d, lats2d)
+    transformed = proj.transform_points(ccrs.PlateCarree(), lons2d, lats2d)
     x = transformed[..., 0]
     y = transformed[..., 1]
     
@@ -164,28 +320,27 @@ def mslp_label(mslp,lat,lon):
                        path_effects.SimpleLineShadow(),path_effects.Normal()])
                 xyplotted.append((x,y))
 
+print("----> Set up cartopy projection & geography")
+
 #define times
-if run_hour == "0600" or "1800":
-    Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
-                            '%Y-%m-%dT%H:%M:%S.%f')-timedelta(hours=3)
-    Init = datetime.strftime(Init1, "%Y-%m-%d %Hz") 
-else:
-    Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
-                            '%Y-%m-%dT%H:%M:%S.%f') 
-    Init = datetime.strftime(Init1, "%Y-%m-%d %Hz")
-    
-Valid1 = datetime.strptime(str(data.time1.data[hour].astype('datetime64[ms]')),
+Init1 = datetime.strptime(str(data.time.data[0].astype('datetime64[ms]')),
+                        '%Y-%m-%dT%H:%M:%S.%f')
+Init = datetime.strftime(Init1, "%Y-%m-%d %Hz")
+
+Valid1 = datetime.strptime(str(data.time.data[hour].astype('datetime64[ms]')),
                           '%Y-%m-%dT%H:%M:%S.%f')
 Valid = datetime.strftime(Valid1, "%Y-%m-%d %Hz")
 
+
 #Find Forecast hour
-data = pd.date_range(start=Init1, end=Valid1, freq='60min')
-hours = len(data) - 1
+data3 = pd.date_range(start=Init1, end=Valid1, freq='60min')
+hours = len(data3) -1
 
 snow = np.where(sn >= 1, rate, sn)
 zr = np.where(zr >= 1, rate, zr)
 ip = np.where(ip >= 1, rate, ip)
 
+    
 clevs = [0.1,0.3,0.5,0.7,1,1.5,2,2.5,3,5,7,10,15,20,25]
 
 cmap= col.ListedColormap(["#00FF01","#00E600","#00CC01","#00AB01","#018100","#006300", "#FFFF00","#FED500","#FF8E00","#FF0100",
@@ -218,11 +373,9 @@ try:
 except:
     pass
 
+cbar = plt.colorbar(rate, shrink=.72,pad=0.01, aspect=30, ticks=clevs)
 
-cbar = plt.colorbar(rate, shrink=.70,pad=0.01, aspect=35, ticks=clevs)
-
-print("----> Plotted Preciptation Type")
-
+print("----> Plotted Preciptation")
 
 remain = ndimage.gaussian_filter(remain,sigma=5,order=0)
 
@@ -244,22 +397,26 @@ print("----> Plotted Heights")
 
 mslp = ndimage.gaussian_filter(mslp,sigma=5,order=0)
 
-contour = ax.contour(lon,lat, mslp, 15, transform=ccrs.PlateCarree(), colors="#666666", linewidths=1, zorder=5)
+contour = ax.contour(lon,lat, mslp, 25, transform=ccrs.PlateCarree(), colors="#666666", linewidths=1, zorder=5)
 ax.clabel(contour, fmt="%0.0f")
 
 mslp_label(mslp,lat,lon)
 
-print("----> Plotted MSLP")
 
 #Add watermark
-plt.text(0.99,0.02,'Graphics By: @CustomWX',
+plt.text(0.99,0.02,'TropicalBlog',
         ha='right',va='bottom',transform=ax.transAxes,fontsize=12,color='black',fontweight='bold'
             , bbox={'facecolor':'white', 'alpha':1, 'boxstyle':'square'}, zorder=15)
 
 #Plot Title
-fig.suptitle(r"0.25$^o$ GFS | Precipitation Rate & Type [in] | MSLP [hPa] | 500-1000mb Thickness", transform=ax.transAxes, fontweight="bold", fontsize=15, y=1.084, x=0, ha="left", va="top")
+if original_hour <=240:
+    fig.suptitle(r"0.25$^o$ GFS | Total Precip Accumulation [in] ", transform=ax.transAxes, fontweight="bold", fontsize=15, y=1.084, x=0, ha="left", va="top")
+if original_hour > 240 and original_hour <= 384:
+    fig.suptitle(r"0.50$^o$ GFS | Total Precip Accumulation [in] ", transform=ax.transAxes, fontweight="bold", fontsize=15, y=1.084, x=0, ha="left", va="top")
 plt.title(f"Init: {Init} | Valid: {Valid} | Hour: [{hours}]",x=0.0, y=1.017, fontsize=15, loc="left", transform=ax.transAxes)
 
-print("----> Plotted Map")
+plt.savefig(f"Ptype {Valid}", bbox_inches="tight")
 
 plt.show()
+
+print("----> Finished!")
